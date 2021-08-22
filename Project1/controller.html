@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+<style>
+* {
+    position: absolute;
+    color: white;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 45px;
+    font-style: bold;
+    box-sizing: border-box;
+    user-select: none;
+}
+div {
+    border: 3px solid white;
+    text-align: center;
+    margin: 0px;
+    padding: 0px;
+}
+div:active {
+    background: white;
+    color: black;
+}
+body, html {
+    width: 100%;
+    height: 100%;
+    background: black;
+    margin: 0px;
+    padding: 0px;
+}
+.round {
+    border-radius: 100%;
+}
+.outer-stick {
+    width: 140px;
+    height: 140px;
+}
+.inner-stick {
+    width: 90px;
+    height: 90px;
+}
+.face {
+    width: 50px;
+    height: 50px;
+}
+#lsOuter {
+    bottom: 200px;
+    left: 100px;
+}
+#lsInner {
+    top: 22px;
+    left: 22px;
+}
+#x {
+    bottom: 245px;
+    right: 190px;
+    color: blue;
+}
+#y {
+    bottom: 290px;
+    right: 145px;
+    color: yellow;
+}
+#a {
+    bottom: 200px;
+    right: 145px;
+    color: green;
+}
+#rsOuter {
+    bottom: 85px;
+    right: 215px;
+}
+#rsInner {
+    top: 22px;
+    left: 22px;
+}
+#b {
+    bottom: 245px;
+    right: 100px;
+    color: red;
+}
+#start {
+    bottom: 245px;
+    right: 380px;
+}
+#select {
+    bottom: 245px;
+    left: 380px;
+}
+.rect {
+    width: 100px;
+    height: 50px;
+}
+#rb {
+    bottom: 360px;
+    right: 120px;
+}
+#rt {
+    bottom: 440px;
+    right: 120px;
+}
+#lb {
+    bottom: 360px;
+    left: 120px;
+}
+#lt {
+    bottom: 440px;
+    left: 120px;
+}
+.dpad {
+    width: 40px;
+    height: 40px;
+}
+
+#dul {
+    bottom: 160px;
+    left: 240px;
+}
+#du0 {
+    bottom: 160px;
+    left: 280px;
+}
+#dur {
+    bottom: 160px;
+    left: 320px;
+}
+#d0l {
+    bottom: 120px;
+    left: 240px;
+}
+#d0r {
+    bottom: 120px;
+    left: 320px;
+}
+#ddl {
+    bottom: 80px;
+    left: 240px;
+}
+#dd0 {
+    bottom: 80px;
+    left: 280px;
+}
+#ddr {
+    bottom: 80px;
+    left: 320px;
+}
+
+</style>
+<script type="text/javascript">
+(function () {
+    function initButtonStates() {
+        return {
+            "du": false,
+            "dd": false,
+            "dl": false,
+            "dr": false,
+            "start": false,
+            "select": false,
+            "lt": false,
+            "rt": false,
+            "lb": false,
+            "rb": false,
+            "a": false,
+            "b": false,
+            "x": false,
+            "y": false,
+            "lsx": 0,
+            "lsy": 0,
+            "rsx": 0,
+            "rsy": 0
+        }
+    }
+
+    let buttonStatus = initButtonStates()
+    let xinputBuffer = new ArrayBuffer(16)
+    let xinputView = new DataView(xinputBuffer)
+
+    const masks = {
+        "du":     0x00000001,
+        "dd":     0x00000002,
+        "dl":     0x00000004,
+        "dr":     0x00000008,
+        "start":  0x00000010,
+        "select": 0x00000020,
+        "lb":     0x00000100,
+        "rb":     0x00000200,
+        "a":      0x00001000,
+        "b":      0x00002000,
+        "x":      0x00004000,
+        "y":      0x00008000,
+        "lt":     0x00ff0000,
+        "rt":     0xff000000
+    }
+
+    const stickOrder = [ 'lsx', 'lsy', 'rsx', 'rsy']
+    
+    // TODO: this needs a unit test
+    function convertToXInput(buttonStates, xInputView) {
+        let buttonPack = 0x0
+        for (let button in masks) {
+            if (buttonStates[button]) {
+                buttonPack += masks[button]
+            } 
+        }
+        xInputView.setUint32(0, buttonPack, true)
+
+        for (let i = 0; i < stickOrder.length; i++) {
+            let stickValue = buttonStates[stickOrder[i]]
+            stickValue = Math.floor(stickValue * 65,534)
+
+            xInputView.setInt16(5 + (i * 2), stickValue, true)
+        }
+
+        return
+    }
+
+    //window.setInterval(() => { convertToXInput(buttonStatus, xinputView) }, 5000)
+
+    function makeHandleStickEvents(elem) {
+        const outerStick = elem;
+        const innerStick = outerStick.children[0]
+        const stickId = outerStick.id.slice(0, 1)
+
+        function handleStickTouch(ev) {
+            // Calculate position
+            const outerBounds = outerStick.getBoundingClientRect()
+            const innerBounds = innerStick.getBoundingClientRect()
+            const touchLeft = Math.min(Math.max(ev.touches[0].clientX - outerBounds.x, 0), outerBounds.width)
+            const touchTop = Math.min(Math.max(ev.touches[0].clientY - outerBounds.y, 0), outerBounds.height)
+
+            // Update dict
+            buttonStatus[ stickId + 'sx' ] = (touchLeft / outerBounds.width ) - 0.5
+            buttonStatus[ stickId + 'sy' ] = (touchTop  / outerBounds.height) - 0.5
+            
+
+            // Update the visuals
+            innerStick.style.left = Math.floor(touchLeft - (innerBounds.width / 2)) + "px",
+            innerStick.style.top = Math.floor(touchTop - (innerBounds.height / 2)) + "px"
+        }
+
+        function releaseStickTouch(ev) {
+            buttonStatus[ stickId + 'sx' ] = 0.0
+            buttonStatus[ stickId + 'sy' ] = 0.0
+            innerStick.style.left = ""
+            innerStick.style.top = ""
+        }
+
+        return [handleStickTouch, releaseStickTouch]
+    }
+
+    function splitComboButtons(id) {
+        if (id[0] == 'd') {
+            let dpad = []
+            for (let i = 1; i < id.length; i++) {
+                let char = id[i]
+                if (char != '0') {
+                    dpad.push('d' + char)
+                }
+            }
+
+            return dpad
+        } else {
+            return [ id ]
+        }
+    }
+
+    function makeHandleButtonTouchEvents(elem) {
+        const button = elem
+        const buttonIds = splitComboButtons(elem.id)
+
+        function handleButton(ev) {
+            const pressed = ev.type == "touchstart"
+            for (let i = 0; i < buttonIds.length; i++) {
+                buttonStatus[buttonIds[i]] = pressed
+            }
+        }
+
+        return handleButton
+    }
+
+    function openDataChannel() {
+        const localConnection = new RTCPeerConnection()
+        const sendChannel = localConnection.createDataChannel("sendChannel")
+
+        const candidates = [];
+
+        return new Promise((resolve, reject) => {
+            localConnection.onicecandidate = function (e) {
+                if (e.candidate) {
+                    candidates.push(e.candidate)
+                } else {
+                    localConnection.onicecandidate = null;
+                    resolve(candidates)
+                }
+            }
+        })
+    }
+
+    async function startWebRTC() {
+        const iceCandidates = await openDataChannel();
+        console.log(iceCandidates);
+        const resp = await fetch(`http://${document.location.host}/connect`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain'
+            },
+            redirect: 'follow',
+            referrerPolicy: 'no-referrer',
+            body: candidates[0]
+        });
+        return response.json();
+    }
+
+    
+    document.addEventListener("DOMContentLoaded", function() {
+        const sticks = document.querySelectorAll('.outer-stick');
+        for (let i = 0; i < sticks.length; i++) {
+            const stick = sticks[i]
+
+            const [handleStickTouch, releaseStickTouch] = makeHandleStickEvents(stick)
+            stick.addEventListener("touchstart", handleStickTouch)
+            stick.addEventListener("touchmove", handleStickTouch)
+            stick.addEventListener("touchend", releaseStickTouch)
+        }
+
+        const buttons = document.querySelectorAll('.face, .dpad, .rect');
+        for (let i = 0; i < buttons.length; i++) {
+            const button = buttons[i]
+            const handleButton = makeHandleButtonTouchEvents(button)
+
+            // TODO: handle touch leaving?
+            button.addEventListener("touchstart", handleButton)
+            button.addEventListener("touchend", handleButton)
+        }
+
+        startWebRTC().then(e => console.log(e))
+
+        /*
+        let socket = new WebSocket(`ws://${document.location.host}/connect`, ["json"]);
+        socket.onopen = function () {
+            socket.send("\n\nHello world")
+        }
+        socket.onerror = function(error) {
+            throw error
+        }*/
+    })
+})()
+</script>
+</head>
+<body>
+    <div class="round outer-stick" id="lsOuter">
+        <div class="round inner-stick" id="lsInner"></div>
+    </div>
+    <div class="dpad" id="dul"></div>
+    <div class="dpad" id="du0"></div>
+    <div class="dpad" id="dur"></div>
+    <div class="dpad" id="d0r"></div>
+    <div class="dpad" id="ddr"></div>
+    <div class="dpad" id="dd0"></div>
+    <div class="dpad" id="ddl"></div>
+    <div class="dpad" id="d0l"></div>
+    <div class="rect" id="lb">LB</div>
+    <div class="rect" id="lt">LT</div>
+    <div class="rect" id="rb">RB</div>
+    <div class="rect" id="rt">RT</div>
+    <div class="round face" id="x">X</div>
+    <div class="round face" id="y">Y</div>
+    <div class="round face" id="a">A</div>
+    <div class="round face" id="b">B</div>
+    <div class="round face" id="select">&#x25a1;</div>
+    <div class="round face" id="start">&#x2261;</div>
+    <div class="round outer-stick" id="rsOuter">
+        <div class="round inner-stick" id="rsInner"></div>
+    </div>
+</body>
+</html>
